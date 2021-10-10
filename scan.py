@@ -1,3 +1,5 @@
+from skimage.filters import threshold_local
+
 from pyimagesearch.transform import four_point_transform
 import argparse
 import cv2
@@ -8,6 +10,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--image", required=True,
                 help="Path to the image to be scanned")
 args = vars(ap.parse_args())
+
+
 
 # 计算原图高度比例
 # 重新resize
@@ -44,25 +48,25 @@ for c in cnts:
     # 如果我们的近似轮廓有四点，那么我们
     # 可以假设我们已经找到了我们的目标
     if len(approx) == 4:
-        screenCnt = approx
+        screen_cnt = approx
         break
 
 # s显示纸张的轮廓（轮廓）
 print("STEP 2: Find contours of paper")
-cv2.drawContours(image, [screenCnt], -1, (0, 255, 0), 2)
+cv2.drawContours(image, [screen_cnt], -1, (0, 255, 0), 2)
 cv2.imshow("Outline", image)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
 # 应用四点转换以获得自上而下
 # view of the original image
-warped = four_point_transform(orig, screenCnt.reshape(4, 2) * ratio)
+warped = four_point_transform(orig, screen_cnt.reshape(4, 2) * ratio)
 
 # 将扭曲的图像转换为灰度，然后对它进行阈值
 # 黑白效果
-# warped = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
-# T = threshold_local(warped, 11, offset=10, method="gaussian")
-# warped = (warped > T).astype("uint8") * 255
+warped = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+T = threshold_local(warped, 11, offset=10, method="gaussian")
+warped = (warped > T).astype("uint8") * 255
 
 
 print("STEP 3: Apply perspective transform")
