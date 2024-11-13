@@ -1,75 +1,73 @@
-from skimage.filters import threshold_local
+#! /usr/bin/env python3
 
 from pyimagesearch.transform import four_point_transform
 import argparse
 import cv2
 import imutils
+import numpy as np
+
+# requirements.txt
 
 # 命令行参数
 ap = argparse.ArgumentParser()
-ap.add_argument("-i", "--image", required=True,
-                help="Path to the image to be scanned")
+ap.add_argument("-i", "--image", required=True, help="Path to the image to be scanned")
 args = vars(ap.parse_args())
 
 
-
 # 计算原图高度比例
-# 重新resize
+# 重新 resize
 image = cv2.imread(args["image"])
-ratio = image.shape[0] / 500.0
+ratio = image.shape[0] / 1000.0
 orig = image.copy()
-image = imutils.resize(image, height=500)
 
-# 处理图片
-gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-gray = cv2.GaussianBlur(gray, (3, 3), 0)
-edged = cv2.Canny(gray, 75, 200)
+# 把图片 resize 到和屏幕一样大，并且保持比例
+image = imutils.resize(image, height=1000)
 
-# 显示轮廓和原图
-print("STEP 1: Edge Detection")
+# 全局变量存储点击的点
+points = []
+
+POINT_SIZE = 5
+POINT_COLOR = (0, 255, 0)
+LINE_COLOR = (0, 0, 255)
+LINE_THICKNESS = 2
+
+old_image = image.copy()
+
+
+# 鼠标回调函数
+def get_points(event, x, y, flags, param):
+    global points, image
+    if event == cv2.EVENT_LBUTTONDOWN:  # 检测到左键点击
+        if len(points) < 4:  # 只允许点击 4 个点
+            points.append((x, y))
+            # 画点
+            cv2.circle(image, (x, y), POINT_SIZE, POINT_COLOR, -1)
+
+            # 如果有多个点，画线连接它们
+            if len(points) > 1:
+                cv2.line(image, points[-2], points[-1], LINE_COLOR, LINE_THICKNESS)
+            # 如果是第四个点，将其与第一个点相连
+            if len(points) == 4:
+                cv2.line(image, points[3], points[0], LINE_COLOR, LINE_THICKNESS)
+            cv2.imshow("Image", image)
+
+
 cv2.imshow("Image", image)
-cv2.imshow("Edged", edged)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
 
-# 找到最大的轮廓边
-# 初始化屏幕轮廓
+# 设置鼠标回调函数
+cv2.setMouseCallback("Image", get_points)
 
-cnts = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-cnts = imutils.grab_contours(cnts)
-cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[:5]
-
-# loop over the contours
-for c in cnts:
-    # 获得大致轮廓
-    peri = cv2.arcLength(c, True)
-    approx = cv2.approxPolyDP(c, 0.02 * peri, True)
-
-    # 如果我们的近似轮廓有四点，那么我们
-    # 可以假设我们已经找到了我们的目标
-    if len(approx) == 4:
-        screen_cnt = approx
+# 等待四个点被点击
+while True:
+    if len(points) >= 4:  # 如果已点击四个点
         break
+    cv2.waitKey(1)
 
-# s显示纸张的轮廓（轮廓）
-print("STEP 2: Find contours of paper")
+screen_cnt = np.array(points, dtype=np.int32)
+
 cv2.drawContours(image, [screen_cnt], -1, (0, 255, 0), 2)
-cv2.imshow("Outline", image)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
 
-# 应用四点转换以获得自上而下
-# view of the original image
 warped = four_point_transform(orig, screen_cnt.reshape(4, 2) * ratio)
-
-# 将扭曲的图像转换为灰度，然后对它进行阈值
-# 黑白效果
-warped = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
-T = threshold_local(warped, 11, offset=10, method="gaussian")
-warped = (warped > T).astype("uint8") * 255
-
-
-print("STEP 3: Apply perspective transform")
-cv2.imshow("Original", imutils.resize(orig, height=650))
-cv2.imshow("Scanned", imutils.resize(warped, height=650))
+cv2.imshow("Scanned", imutils.resize(warped, height=1000))
+cv2.imwrite("scanned.jpg", warped)
 cv2.waitKey(0)
